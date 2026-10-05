@@ -1,3 +1,4 @@
+
 def checksum(payload):
     result = 0
     for char in payload:
@@ -52,3 +53,4 @@ def parse_frame(line):
         return None
 
     return (p, d, s)
+
