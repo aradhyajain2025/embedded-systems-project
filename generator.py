@@ -16,6 +16,14 @@ INTRUDER = {
     "d_walk_step": 10,        # D drifts like a random walk
     "d_glitch_chance": 0.01,
 }
+BLOCKING = {
+    "p_burst_chance": 0.01,   # room is quiet, same as NORMAL
+    "p_burst_len": (3, 10),
+    "s_blip_chance": 0.01,
+    "d_base": 250,
+    "d_jitter": 3,
+    "d_glitch_chance": 0.9,   # ultrasonic sensor covered: D=0 (no echo) on most frames
+}
 def generate_frames(n, mode=NORMAL):
     p_burst_len = 0
     d = mode.get("d_base", 250)
@@ -28,12 +36,12 @@ def generate_frames(n, mode=NORMAL):
             if p:
                 p_burst_len = random.randint(*mode.get("p_burst_len", (3, 10))) - 1
         s = 1 if random.random() < mode.get("s_blip_chance", 0.01) else 0
-        if random.random() < mode.get("d_glitch_chance", 0.01):
-            d = 0
-        elif "d_walk_step" in mode:
+        if "d_walk_step" in mode:
             d += random.randint(-mode["d_walk_step"], mode["d_walk_step"])
-            d = max(2, min(400, d))
         else:
-            d += random.randint(-mode.get("d_jitter", 3), mode.get("d_jitter", 3))
-            d = max(2, min(400, d))
-        yield make_frame(p, d, s)
+            # empty room: jitter around the base, no accumulation
+            d = mode.get("d_base", 250) + random.randint(-mode.get("d_jitter", 3), mode.get("d_jitter", 3))
+        d = max(2, min(400, d))
+        # glitch only affects the transmitted value, true distance d carries on
+        d_out = 0 if random.random() < mode.get("d_glitch_chance", 0.01) else d
+        yield make_frame(p, d_out, s)
