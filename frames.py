@@ -53,4 +53,3 @@ def parse_frame(line):
         return None
 
     return (p, d, s)
-
