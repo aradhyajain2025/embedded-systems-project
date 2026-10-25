@@ -1,0 +1,22 @@
+Waiting for frames (20 frames = 4 s per window)...
+win   1  score=0.696  ALERT  pir=0.00 sound=0.10 dist= 216cm no_echo=0.00  (rejected: 2)
+win   2  score=0.663  ok     pir=0.90 sound=0.05 dist= 158cm no_echo=0.00  (rejected: 2)
+win   3  score=0.688  ALERT  pir=0.50 sound=0.05 dist= 116cm no_echo=0.00  (rejected: 2)
+win   4  score=0.637  ok     pir=1.00 sound=0.05 dist=  52cm no_echo=0.00  (rejected: 2)
+win   5  score=0.712  ALERT  pir=0.90 sound=0.05 dist=  42cm no_echo=0.00  (rejected: 2)
+win   6  score=0.600  ok     pir=1.00 sound=0.00 dist=  42cm no_echo=0.00  (rejected: 2)
+win   7  score=0.644  ok     pir=0.90 sound=0.00 dist=  41cm no_echo=0.00  (rejected: 2)
+win   8  score=0.796  ALERT  pir=1.00 sound=0.20 dist=  40cm no_echo=0.05  (rejected: 2)
+win   9  score=0.738  ALERT  pir=1.00 sound=0.10 dist=  42cm no_echo=0.00  (rejected: 2)
+win  10  score=0.569  ok     pir=0.60 sound=0.00 dist=  54cm no_echo=0.00  (rejected: 2)
+win  11  score=0.720  ALERT  pir=0.05 sound=0.10 dist=  52cm no_echo=0.00  (rejected: 2)
+win  12  score=0.637  ok     pir=1.00 sound=0.05 dist=  45cm no_echo=0.00  (rejected: 3)
+win  13  score=0.646  ok     pir=0.10 sound=0.05 dist=  42cm no_echo=0.05  (rejected: 3)
+win  14  score=0.627  ok     pir=0.45 sound=0.05 dist=  44cm no_echo=0.00  (rejected: 3)
+win  15  score=0.637  ok     pir=1.00 sound=0.05 dist=  42cm no_echo=0.00  (rejected: 3)
+win  16  score=0.703  ALERT  pir=0.65 sound=0.05 dist=  47cm no_echo=0.00  (rejected: 5)
+win  17  score=0.760  ALERT  pir=1.00 sound=0.10 dist=  41cm no_echo=0.00  (rejected: 5)
+win  18  score=0.634  ok     pir=0.55 sound=0.00 dist=  42cm no_echo=0.00  (rejected: 5)
+win  19  score=0.682  ALERT  pir=0.40 sound=0.05 dist=  42cm no_echo=0.00  (rejected: 5)
+
+Stopped after 19 windows, 5 rejected frames.

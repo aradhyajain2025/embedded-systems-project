@@ -2,11 +2,13 @@
 """PC side for the ESP32 intrusion detector.
 Frame format from the firmware:  P:1,D:45,S:0*7D   (XOR checksum of the payload)
 
+  python ids_live.py check    --port COM5                      60 s link check, fills the firmware test table
   python ids_live.py record   --port COM5 --label normal --seconds 600 --out normal_train.csv
   python ids_live.py train    normal_train.csv --model model.joblib
   python ids_live.py evaluate --model model.joblib normal_test.csv walk.csv loiter.csv cover.csv
   python ids_live.py live     --port COM5 --model model.joblib
 
+Any of check, record and live can read a text file of frames with --replay file.txt instead of --port.
 Needs: pip install pyserial numpy scikit-learn joblib
 """
 import argparse, csv, sys, time
@@ -15,6 +17,7 @@ from sklearn.ensemble import IsolationForest
 import joblib
 
 WINDOW = 20          # frames per window = 4 s at 5 frames per second
+SAMPLE_HZ = 5        # firmware sends one frame every 200 ms
 FIRST_FRAME_TIMEOUT = 60   # s to wait for the first frame (firmware warm-up is 30 s)
 FEATURES = ["pir_ratio", "pir_transitions", "sound_ratio", "sound_transitions",
             "pir_sound_overlap", "dist_mean", "dist_std", "dist_min", "dist_range",
@@ -64,6 +67,8 @@ def window_features(w):
 
 
 def make_windows(frames):
+    if len(frames) < WINDOW:
+        return np.empty((0, len(FEATURES)))
     return np.array([window_features(frames[i:i + WINDOW])
                      for i in range(0, len(frames) - WINDOW + 1, WINDOW)])
 
@@ -77,10 +82,18 @@ def read_csv(path):
     return frames, label
 
 
+def open_text(path):
+    """Open a frames file whatever PowerShell or an editor saved it as (UTF-8, UTF-8 BOM, UTF-16)."""
+    with open(path, "rb") as f:
+        head = f.read(2)
+    enc = "utf-16" if head in (b"\xff\xfe", b"\xfe\xff") else "utf-8-sig"
+    return open(path, encoding=enc, errors="ignore")
+
+
 def line_source(args):
     """Yield text lines from a serial port, or from a file with --replay."""
     if args.replay:
-        with open(args.replay) as f:
+        with open_text(args.replay) as f:
             yield from f
         return
     import serial
@@ -124,10 +137,49 @@ def cmd_record(args):
             pass
     print(f"\nSaved {n} frames to {args.out} ({bad} rejected, {n // WINDOW} windows)"
           + (f", ignored {pre} non-frame lines before the first frame" if pre else ""))
+    return n, bad
+
+
+def cmd_check(args):
+    """Record for a while, then report what the firmware test table asks for."""
+    args.label = "check"
+    n, bad = cmd_record(args)
+    if n == 0:
+        print("FAIL: no frames received"); return
+    rows = list(csv.DictReader(open(args.out, newline="")))
+    t = [float(r["t"]) for r in rows]
+    p = np.array([int(r["P"]) for r in rows]); d = np.array([int(r["D"]) for r in rows]); s = np.array([int(r["S"]) for r in rows])
+    lo, hi = SAMPLE_HZ * args.seconds - 5, SAMPLE_HZ * args.seconds + 5
+    print(f"\n{'check':34s}{'result':>14s}   expected")
+    print(f"{'frames in ' + str(args.seconds) + ' s':34s}{n:>14d}   {lo} to {hi}"
+          + ("   (not meaningful for --replay)" if args.replay else ""))
+    if not args.replay and len(t) > 1 and t[-1] > t[0]:
+        print(f"{'frame rate (frames per second)':34s}{(n - 1) / (t[-1] - t[0]):>14.2f}   about {SAMPLE_HZ}")
+    print(f"{'rejected frames':34s}{bad:>14d}   0 or very close")
+    valid = d[d > 0]
+    print(f"{'frames with D=0 (no echo)':34s}{int((d == 0).sum()):>14d}   all of them with no sensor, few with one")
+    if len(valid):
+        print(f"{'D min / mean / max (D>0, cm)':34s}{valid.min():>5d} /{valid.mean():>5.0f} /{valid.max():>4d}   stable with a still scene")
+    print(f"{'P=1 share':34s}{p.mean() * 100:>13.1f}%   0 in a still room, high while you wave")
+    print(f"{'S=1 share':34s}{s.mean() * 100:>13.1f}%   near 0 in a quiet room")
+    ok = lo <= n <= hi and bad <= 1
+    if args.replay:
+        print("\nReplay file, so this is not a hardware link check.")
+    else:
+        print("\nLink check:", "PASS" if ok else "CHECK THE LINES ABOVE")
 
 
 def cmd_train(args):
-    X = np.vstack([make_windows(read_csv(p)[0]) for p in args.csv])
+    parts = []
+    for path in args.csv:
+        X = make_windows(read_csv(path)[0])
+        if len(X) == 0:
+            print(f"Skipping {path}: fewer than {WINDOW} frames")
+        else:
+            parts.append(X)
+    if not parts:
+        sys.exit("Nothing to train on.")
+    X = np.vstack(parts)
     if len(X) < 100:
         print(f"Warning: only {len(X)} windows. Aim for 150 or more (about 10 minutes).")
     model = IsolationForest(n_estimators=200, contamination=0.02, random_state=42).fit(X)
@@ -137,49 +189,61 @@ def cmd_train(args):
 
 def cmd_evaluate(args):
     model = joblib.load(args.model)
-    print(f"{'label':14s}{'windows':>8s}{'flagged':>9s}")
+    print(f"{'label':14s}{'windows':>8s}{'flagged':>9s}{'rate':>9s}")
     for p in args.csv:
         frames, label = read_csv(p)
         X = make_windows(frames)
         if not len(X):
             print(f"{p}: fewer than {WINDOW} frames"); continue
         flag = model.predict(X) == -1
-        print(f"{label:14s}{len(X):8d}{flag.mean() * 100:8.1f}%")
-    print("For the 'normal' row, flagged % is the false alarm rate. For the others it is the detection rate.")
+        print(f"{(label or p):14s}{len(X):8d}{int(flag.sum()):9d}{flag.mean() * 100:8.1f}%")
+    print("For the 'normal' row, the rate is the false alarm rate. For the others it is the detection rate.")
 
 
 def cmd_live(args):
     model = joblib.load(args.model)
-    buf, bad, seen = [], 0, False
-    for line in line_source(args):
-        fr = parse_frame(line)
-        if fr is None:
-            bad += seen and line.strip() != "" and not line.startswith("#")   # boot log before the first frame is not counted
-            continue
-        seen = True
-        buf.append(fr)
-        if len(buf) == WINDOW:
-            x = np.array([window_features(buf)])
-            score = -model.score_samples(x)[0]
-            alert = model.predict(x)[0] == -1
-            print(f"score={score:.3f}  {'ALERT' if alert else 'ok   '}  (rejected frames so far: {bad})", flush=True)
-            buf = []
+    buf, bad, seen, n_win = [], 0, False, 0
+    print(f"Waiting for frames ({WINDOW} frames = {WINDOW // SAMPLE_HZ} s per window)...", flush=True)
+    try:
+        for line in line_source(args):
+            fr = parse_frame(line)
+            if fr is None:
+                bad += seen and line.strip() != "" and not line.startswith("#")   # boot log before the first frame is not counted
+                continue
+            seen = True
+            buf.append(fr)
+            if len(buf) == WINDOW:
+                n_win += 1
+                f = window_features(buf)
+                x = np.array([f])
+                score = -model.score_samples(x)[0]
+                alert = model.predict(x)[0] == -1
+                dist = f"{f[5]:4.0f}cm" if f[9] < 1 else "  none"      # f[5] dist_mean, f[9] no_echo_ratio
+                print(f"win {n_win:3d}  score={score:.3f}  {'ALERT' if alert else 'ok   '}"
+                      f"  pir={f[0]:.2f} sound={f[2]:.2f} dist={dist} no_echo={f[9]:.2f}"
+                      f"  (rejected: {bad})", flush=True)
+                buf = []
+    except KeyboardInterrupt:
+        pass
+    print(f"\nStopped after {n_win} windows, {bad} rejected frames.")
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name in ("record", "live"):
+    for name in ("record", "live", "check"):
         sp = sub.add_parser(name)
         sp.add_argument("--port"); sp.add_argument("--baud", type=int, default=115200)
         sp.add_argument("--replay", help="read frames from a text file instead of a serial port")
     sub.choices["record"].add_argument("--label", required=True)
     sub.choices["record"].add_argument("--seconds", type=int, default=0)
     sub.choices["record"].add_argument("--out", required=True)
+    sub.choices["check"].add_argument("--seconds", type=int, default=60)
+    sub.choices["check"].add_argument("--out", default="check.csv")
     sub.choices["live"].add_argument("--model", default="model.joblib")
     sp = sub.add_parser("train"); sp.add_argument("csv", nargs="+"); sp.add_argument("--model", default="model.joblib")
     sp = sub.add_parser("evaluate"); sp.add_argument("csv", nargs="+"); sp.add_argument("--model", default="model.joblib")
     args = ap.parse_args()
-    if args.cmd in ("record", "live") and not (args.port or args.replay):
+    if args.cmd in ("record", "live", "check") and not (args.port or args.replay):
         ap.error("give --port COMx or --replay file")
-    {"record": cmd_record, "train": cmd_train, "evaluate": cmd_evaluate, "live": cmd_live}[args.cmd](args)
+    {"record": cmd_record, "check": cmd_check, "train": cmd_train, "evaluate": cmd_evaluate, "live": cmd_live}[args.cmd](args)
