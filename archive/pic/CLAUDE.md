@@ -4,7 +4,7 @@
 - Course: Embedded System Architecture (VIT Vellore, Semester 3). Two-person team.
 - Presentation and simulation demo: Fri 23 Oct 2026, 8 am. Review 3 due 31 Oct 2026.
 - Hardware is DROPPED. Simulation only. Teammate's PIC16F877A firmware (Embedded C, MPLAB X, XC8) runs in a simulator and emits UART frames. I (Aradhya) own the PC side in Python.
-- Platform justification: hardware USART, CCP module for ultrasonic echo capture, interrupt on change for digital sensors. ML runs on the PC because the PIC cannot hold the model.
+- Platform justification: the PIC16F877A has a hardware USART for the UART link, plus a CCP module and interrupt on change that would suit real hardware (echo capture, digital sensors). In this simulation build the firmware uses a Timer2 interrupt for 200 ms sampling, the hardware USART at 9600 baud, and Timer1 as a microsecond counter for echo timing, with the digital sensors polled. CCP and interrupt on change are NOT implemented, do not claim them. ML runs on the PC because the PIC cannot hold the model.
 
 ## System
 Sensors: PIR (binary motion), ultrasonic (distance, cm), digital sound (binary).
@@ -30,3 +30,5 @@ Why ML at all: labelled intrusion data is impractical to collect; the ESP32 pape
 - For concepts, ask what I think first. For debugging, point at the region before fixing, unless I say "just tell me".
 - Be honest about weaknesses: results come from simulated data, so they validate the pipeline, not real world accuracy. Never overclaim.
 - Viva questions to be ready for: why ML vs a threshold, why Isolation Forest, why PC side, why simulated data, where is the embedded part.
+
+

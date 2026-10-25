@@ -10,7 +10,7 @@ import numpy as np
 from sklearn.ensemble import IsolationForest
 from frames import parse_frame
 
-SAMPLE_HZ = 5          # frames per second (generator rate; confirm against the firmware)
+SAMPLE_HZ = 5          # frames per second (firmware: Timer2 1 ms tick, frame every 200 ms)
 WINDOW = 20            # frames per window (= 4 s at SAMPLE_HZ)
 FEATURE_NAMES = ["pir_ratio", "pir_transitions", "dist_mean", "dist_std",
                  "dist_min", "dist_range", "sound_ratio", "sound_transitions",

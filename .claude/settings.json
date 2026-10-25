@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c ' *)",
+      "PowerShell(Get-Command python, py -ErrorAction SilentlyContinue)",
+      "PowerShell(python -c \"import sys; print\\(sys.executable\\)\")",
+      "PowerShell(python -c \"import sklearn, numpy; print\\(sklearn.__version__\\)\")",
+      "PowerShell(python -c \"import serial; print\\(serial.__version__\\)\")",
+      "PowerShell(python -m pip install scikit-learn numpy matplotlib pyserial 2>&1)"
+    ]
+  }
+}
